@@ -1,0 +1,72 @@
+name: Monthly Token Update
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  process-token-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Token from Secret
+        id: extract
+        env:
+          LISTA_TOKENS: ${{ secrets.LISTA_TOKENS }}
+        run: |
+          CURRENT_MONTH=$(date +'%m-%Y')
+          echo "MONTH_STR=$CURRENT_MONTH" >> $GITHUB_ENV
+          
+          TOKEN_VALUE=$(echo $LISTA_TOKENS | jq -r --arg DATE "$CURRENT_MONTH" '.[$DATE]')
+          
+          if [ "$TOKEN_VALUE" == "null" ] || [ -z "$TOKEN_VALUE" ]; then
+            echo "STATUS=🔴 FAILED" >> $GITHUB_ENV
+            echo "ERROR_LOG=Token not found for $CURRENT_MONTH in Secrets." >> $GITHUB_ENV
+            exit 1
+          else
+            echo "$TOKEN_VALUE" > e2024465-32b3-4056-abd8-a67b90b3046d
+            echo "EXTRACTED_TOKEN=$TOKEN_VALUE" >> $GITHUB_ENV
+          fi
+
+      - name: Commit and Push Changes
+        id: commit_step
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          
+          # Check if e2024465-32b3-4056-abd8-a67b90b3046d has changed
+          if git diff --exit-code e2024465-32b3-4056-abd8-a67b90b3046d; then
+            echo "No changes detected in token file."
+            echo "STATUS=🟡 NO CHANGES" >> $GITHUB_ENV
+            echo "SKIP_MAIL_DETAIL=The token for this month was already up to date." >> $GITHUB_ENV
+          else
+            git add e2024465-32b3-4056-abd8-a67b90b3046d
+            git commit -m "chore: update token for ${{ env.MONTH_STR }}"
+            git push
+            echo "STATUS=🟢 SUCCESSFUL" >> $GITHUB_ENV
+          fi
+
+      - name: Send Email Report
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "${{ env.STATUS || '🔴 FAILED' }}: Token Update Report - ${{ env.MONTH_STR }}"
+          to: ${{ secrets.EMAIL }}
+          from: GitHub Actions Automation
+          body: |
+            GitHub Actions Automation Report - Provisioning
+            
+            Status: ${{ env.STATUS || '🔴 FAILED (Unexpected Error)' }}
+            Target Month: ${{ env.MONTH_STR }}
+            
+            Details:
+            ${{ env.STATUS == '🟢 SUCCESSFUL' && format('Token updated in e2024465-32b3-4056-abd8-a67b90b3046d. Value: {0}', env.EXTRACTED_TOKEN) || env.STATUS == '🟡 NO CHANGES' && env.SKIP_MAIL_DETAIL || env.ERROR_LOG || 'The workflow crashed unexpectedly.' }}
+            
+            Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
