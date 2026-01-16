@@ -58,10 +58,10 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "${{ env.STATUS || '🔴 FAILED' }}: Token Update Report - ${{ env.MONTH_STR }}"
-          to: ${{ secrets.EMAIL }}
+          to: ${{ secrets.ADDRESSEE }}
           from: GitHub Actions Automation
           body: |
-            GitHub Actions Automation Report - Provisioning
+            GitHub Actions Automation Report - Provisioning - PROD
             
             Status: ${{ env.STATUS || '🔴 FAILED (Unexpected Error)' }}
             Target Month: ${{ env.MONTH_STR }}
